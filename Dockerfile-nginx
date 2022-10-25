@@ -14,8 +14,7 @@ ENV no_proxy=${no_proxy}
 
 RUN set -ex \
     && if [ "$ENABLED_MODULES" = "" ]; then \
-        echo "No additional modules enabled, exiting"; \
-        exit 1; \
+        echo "No additional modules enabled"; \
     fi
 
 COPY ./ /modules/
