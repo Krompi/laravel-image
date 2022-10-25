@@ -48,4 +48,4 @@ jobs:
           push: true
           tags: krompi/laravel-base-nginx:latest
           file: Dockerfile-nginx
-          build-args: ENABLED_MODULES="headers-more modsecurity"
+          # build-args: ENABLED_MODULES="headers-more modsecurity"

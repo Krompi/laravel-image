@@ -26,6 +26,7 @@ RUN set -ex \
                 quilt lsb-release build-essential libxml2-utils xsltproc \
                 equivs git g++
 RUN hg clone -r ${NGINX_VERSION}-${PKG_RELEASE%%~*} https://hg.nginx.org/pkg-oss/ \
+    && ls -la /modules \
     && cd pkg-oss \
     && mkdir /tmp/packages \
     && for module in $ENABLED_MODULES; do \
