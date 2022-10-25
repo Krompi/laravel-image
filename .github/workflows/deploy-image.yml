@@ -34,7 +34,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push App-Image
-        if: ${{ inputs.deployApp }} == true
+        if: ${{ inputs.deployApp }}
         uses: docker/build-push-action@v3
         with:
           push: true
@@ -42,7 +42,7 @@ jobs:
           file: Dockerfile-app-latest
 
       - name: Build and push Nginx-Image
-        if: ${{ inputs.deployNginx }} == true
+        if: ${{ inputs.deployNginx }}
         uses: docker/build-push-action@v3
         with:
           push: true
