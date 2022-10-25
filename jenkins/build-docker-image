@@ -1,0 +1,66 @@
+def app = "laravel-base"
+def reg       = "10.172.40.163"
+def img_app   = "${reg}/${app}-app"
+def img_nginx = "${reg}/${app}-nginx"
+
+pipeline {
+    agent any
+
+    parameters {
+        // booleanParam(defaultValue: true, description: 'Build App', name: 'buildApp')
+        // booleanParam(defaultValue: true, description: 'Build Nginx', name: 'buildNginx')
+        // choice(name: 'tag', choices: ['develop', 'latest', 'buster'], description: 'Image-Tag')
+        choice(name: 'tagApp', choices: ['---', 'develop', 'latest', 'buster'], description: 'App-Image-Tag')
+        choice(name: 'tagNginx', choices: ['---', 'develop', 'latest'], description: 'Nginx-Image-Tag')
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage("Dependencies") {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'registry', passwordVariable: 'pass', usernameVariable: 'user')]) {
+                    sh "sudo docker login -u ${user} -p ${pass} ${reg}"
+                }
+            }
+        }
+
+        stage("Build App") {
+            steps {
+                script {
+                    if ( "${params.tagApp}" != "---" ) {
+                        if ( "${params.tagApp}" == "buster" ) {
+                            sh "sudo docker build --no-cache -t ${img_app}:${params.tagApp} --build-arg http_proxy=http://10.167.16.25:80 --build-arg https_proxy=http://10.167.16.25:80 -f Dockerfile-app-buster ."
+                            sh "sudo docker push ${img_app}:${params.tagApp}"
+                        } else {
+                            sh "sudo docker build --no-cache -t ${img_app}:${params.tagApp} --build-arg http_proxy=http://10.167.16.25:80 --build-arg https_proxy=http://10.167.16.25:80 -f Dockerfile-app-latest ."
+                            sh "sudo docker push ${img_app}:${params.tagApp}"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage("Build Nginx") {
+            steps {
+                script {
+                    if ( "${params.tagNginx}" != "---") {
+                        sh "sudo docker build --no-cache --build-arg ENABLED_MODULES=\"headers-more modsecurity\" -t ${img_nginx}:${params.tagNginx} -f Dockerfile-nginx ."
+                        sh "sudo docker push ${img_nginx}:${params.tagNginx}"
+                    }
+                }
+            }
+        }
+
+    }
+
+    post {
+        always {
+            deleteDir()
+            sh "sudo docker image prune -f"
+        }
+    }
+}

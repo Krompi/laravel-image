@@ -1,0 +1,117 @@
+FROM php:8.1-fpm
+
+# Arguments defined in docker-compose.yml
+ARG UID="1000"
+ARG USER="www-run"
+ARG GROUP="www-data"
+ENV UID=${UID}
+ENV USER=${USER}
+ENV GROUP=${GROUP}
+# Proxy
+ARG http_proxy=""
+ARG https_proxy=""
+ARG no_proxy=""
+ENV http_proxy=${http_proxy}
+ENV https_proxy=${https_proxy}
+ENV no_proxy=${no_proxy}
+# sonstiges
+ENV TZ=Europe/Berlin
+ARG NPM_VERSION="16.15.1"
+ARG NVM_VERSION="v0.39.1"
+ARG NVM_DIR="/usr/local/nvm"
+ENV ACCEPT_EULA=Y
+
+# Bash als Default-Shell
+SHELL ["/bin/bash", "--login", "-c"]
+
+# CA des Proxys ergänzen
+# COPY ./conf/bayernwebgatwayca.crt /usr/local/share/ca-certificates/bayernwebgatewayca.crt
+# COPY ./conf/bayern-root-ca-2019.crt /usr/local/share/ca-certificates/bayern-root-ca-2019.crt
+# COPY ./conf/bayern-root-ca-2019.crt /usr/local/share/ca-certificates/bayern-softtoken-ca-2019.crt
+# RUN update-ca-certificates
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential lsb-release apt-utils cron sudo \
+    git \
+    curl wget rsync \
+    snapd \
+    vim \
+    locales  locales-all \
+    libpng-dev \
+    jpegoptim optipng pngquant gifsicle \
+    libonig-dev \
+    libxml2-dev \
+    unzip zip libzip-dev \
+    libpq-dev \
+    libldap2-dev ldap-utils \
+    xz-utils \
+    libfreetype6-dev \
+    libjpeg62-turbo-dev \
+    zlib1g-dev libjpeg-dev \
+    mariadb-client postgresql-client
+
+# Create system user to run Composer and Artisan Commands
+RUN useradd -G ${GROUP},root -u ${UID} -d /home/${USER} ${USER}
+RUN mkdir -p /home/${USER}/.composer && \
+    chown -R ${USER}:${USER} /home/${USER}
+RUN chown -R ${USER}:${GROUP} /var/www
+RUN chmod -R 775 /var/www
+
+# Crontab einrichten
+RUN adduser ${USER} sudo
+RUN echo "%sudo ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+RUN echo "* * * * * ${USER} cd /var/www && /usr/local/bin/php artisan schedule:run 2>&1" >> /etc/crontab
+
+# Locale setzen
+ENV LANG de_DE.utf8
+ENV LANG de_DE.UTF-8  
+ENV LANGUAGE de_DE:de  
+ENV LC_ALL de_DE.UTF-8 
+
+# Install PHP extensions: https://github.com/mlocati/docker-php-extension-installer
+COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/bin/install-php-extensions
+# Install required PHP extensions and all their prerequisites available via apt.
+RUN chmod uga+x /usr/bin/install-php-extensions \
+    && sync \
+    && install-php-extensions bcmath exif gd intl ldap mbstring mysqli pcntl pdo_mysql pdo_pgsql pdo_sqlsrv soap sqlsrv zip
+
+# PHP-Ini
+COPY ./conf/php/php.ini ${PHP_INI_DIR}/php.ini
+
+# Composer vom Docker-Image holen
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+RUN composer --version
+
+# Node.js
+RUN mkdir ${NVM_DIR}
+RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh | NVM_DIR=${NVM_DIR} bash
+COPY ./conf/nvm.sh /etc/profile.d/nvm.sh
+RUN chmod +x /etc/profile.d/nvm.sh
+RUN /etc/profile.d/nvm.sh
+RUN nvm install ${NPM_VERSION}
+RUN npm config set strict-ssl false
+RUN npm install --location=global npm
+
+# Apt-Cache bereinigen
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Bash-Dateien
+COPY ./bin/.bashrc /home/${USER}/
+COPY ./bin/.bash_aliases /home/${USER}/
+
+# Arbeitsverzeichnis setzen
+WORKDIR /var/www
+
+# zum Standard-Benutzer wechseln
+USER ${USER}
+RUN npm config set strict-ssl false
+
+# # Debug-Output
+# RUN echo "${USER}:${UID}:${GROUP}"
+# RUN ls -la /var/www
+# RUN node -v
+# RUN npm -v
+# RUN composer -v
+
+CMD bash -c "sudo cron && sudo php-fpm && su - ${USER}"
