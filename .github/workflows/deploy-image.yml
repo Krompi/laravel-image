@@ -2,9 +2,20 @@ name: Docker Image CI
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - "main"
+    inputs:
+      deployApp:
+        description: 'Build and push App-Image'
+        required: false
+        default: true
+        type: boolean
+      deployNginx:
+        description: 'Build and push Nginx-Image'
+        required: false
+        default: false
+        type: boolean
+  # push:
+  #   branches:
+  #     - "main"
 
 jobs:
   docker:
@@ -22,9 +33,18 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push App-Image
+        if: ${{ inputs.deployApp }} == true
         uses: docker/build-push-action@v3
         with:
           push: true
           tags: krompi/laravel-base-app:latest
           file: Dockerfile-app-latest
+
+      - name: Build and push Nginx-Image
+        if: ${{ inputs.deployNginx }} == true
+        uses: docker/build-push-action@v3
+        with:
+          push: true
+          tags: krompi/laravel-base-nginx:latest
+          file: Dockerfile-nginx
